@@ -2,6 +2,246 @@
 
 Sistema de automação do licenciamento sanitário da Vigilância Sanitária de Londrina, com validação de documentos por IA.
 
+---
+
+## Por onde começar?
+
+Você acabou de clonar o repositório e **nada está rodando**? Escolha **um** caminho:
+
+| Caminho | Quando usar | O que sobe |
+|---------|-------------|------------|
+| **[A – Docker (recomendado)](#caminho-a--docker-tudo-em-containers)** | Quer testar o MVP completo com o mínimo de configuração | Postgres + Portal + IA + Java |
+| **[B – Dev local](#caminho-b--dev-local-só-o-app-no-node)** | Vai alterar código no Next.js dia a dia | Só Postgres no Docker + `npm run dev` na máquina |
+
+> **Não misture os dois ao mesmo tempo** na mesma porta. Docker usa **3002**; `npm run dev` usa **3000** (ou 3001).
+
+---
+
+## Pré-requisitos
+
+### Caminho A (Docker)
+
+- [Docker](https://docs.docker.com/get-docker/) e Docker Compose (Docker Desktop no Windows/Mac)
+- Git
+
+### Caminho B (Dev local)
+
+- Node.js **20+**
+- Docker **só para o Postgres** (ou Postgres instalado no sistema)
+- Git
+
+Opcional (não precisa para o fluxo básico):
+
+- Python 3.11+ — serviço de IA local (`services/ia`)
+- Java 17 — serviço Java local (`services/java`)
+
+---
+
+## Caminho A – Docker (tudo em containers)
+
+Use quando o computador está “zerado”: sem banco, sem app, Docker parado.
+
+### 1. Clone e entre na pasta
+
+```bash
+git clone https://github.com/gcastrodev/visa-londrina-mvp.git
+cd visa-londrina-mvp
+```
+
+### 2. Variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Edite o `.env` e defina pelo menos:
+
+```env
+NEXTAUTH_SECRET=cole_aqui_um_segredo_aleatorio
+```
+
+Gere um segredo, se quiser:
+
+```bash
+openssl rand -base64 32
+```
+
+Para **Docker**, deixe (ou use) estas linhas — o portal fica na porta **3002**:
+
+```env
+DATABASE_URL="postgresql://visa:visa_secret@localhost:5432/visa_londrina"
+NEXTAUTH_URL=http://localhost:3002
+```
+
+(`DATABASE_URL` com `localhost` é usada pelo seed rodando na sua máquina; dentro dos containers o compose usa o host `postgres`.)
+
+### 3. Suba tudo
+
+Certifique-se de que o **Docker Desktop/daemon está ligado**, depois:
+
+```bash
+npm run docker:up
+```
+
+Na primeira vez isso **constrói as imagens** (pode levar alguns minutos). Depois:
+
+- `migrate` aplica as tabelas no banco
+- `nextjs`, `ia_service` e `java_service` sobem
+
+Confira:
+
+```bash
+docker compose ps
+```
+
+Todos devem estar `Up` (o `migrate` aparece como `Exited` — é normal).
+
+### 4. Dados de teste (usuários para login)
+
+Com o Postgres exposto na porta **5432**:
+
+```bash
+npm run docker:seed
+```
+
+### 5. Abra no navegador
+
+| O quê | URL |
+|-------|-----|
+| **Portal** | http://localhost:3002 |
+| Health check | http://localhost:3002/api/health |
+| IA (opcional) | http://localhost:8000/health |
+
+### 6. Login
+
+| Perfil | E-mail | Senha |
+|--------|--------|-------|
+| Analista | `analista@visa.londrina.pr.gov.br` | `analista123` |
+| Requerente | `farmaciavida@exemplo.com` | `requerente123` |
+| Admin | `admin@visa.londrina.pr.gov.br` | `admin123` |
+
+### Parar tudo
+
+```bash
+npm run docker:down
+```
+
+---
+
+## Caminho B – Dev local (só o app no Node)
+
+Use para desenvolver o frontend/API sem rebuild de Docker a cada mudança.
+
+### 1. Clone, `.env` e dependências
+
+```bash
+git clone https://github.com/gcastrodev/visa-londrina-mvp.git
+cd visa-londrina-mvp
+cp .env.example .env
+npm install --legacy-peer-deps
+```
+
+No `.env`, para dev local:
+
+```env
+NEXTAUTH_SECRET=um_segredo_qualquer_em_dev
+NEXTAUTH_URL=http://localhost:3000
+DATABASE_URL="postgresql://visa:visa_secret@localhost:5432/visa_londrina"
+```
+
+### 2. Suba **só** o Postgres
+
+Docker ligado, então:
+
+```bash
+npm run db:postgres
+```
+
+Espere ~5 s e confira:
+
+```bash
+docker compose ps
+```
+
+Deve aparecer `visa_postgres` como `healthy`.
+
+> Erro `P1001: Can't reach database server` = Postgres ainda não está rodando nesta etapa.
+
+### 3. Banco: migrations + seed
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+### 4. Rode o app
+
+**Opção simples (sem IA/Java)** — documentos viram `VALIDO` automaticamente:
+
+```bash
+npm run dev:mock
+```
+
+**Opção normal:**
+
+```bash
+npm run dev
+```
+
+Use a URL que o terminal mostrar (ex.: http://localhost:3000 ou **3001** se a 3000 estiver ocupada).
+
+Se a porta for 3001, ajuste no `.env`:
+
+```env
+NEXTAUTH_URL=http://localhost:3001
+```
+
+### 5. Login
+
+Mesmas credenciais da [tabela acima](#6-login).
+
+### Parar
+
+- App: `Ctrl+C` no terminal do `npm run dev`
+- Postgres: `docker compose stop postgres` ou `npm run docker:down` (para todos os containers)
+
+---
+
+## Como saber se está funcionando?
+
+```bash
+# Dev local (porta 3000 ou a que o terminal mostrou)
+curl http://localhost:3000/api/health
+
+# Docker (porta 3002)
+curl http://localhost:3002/api/health
+```
+
+Resposta esperada:
+
+```json
+{"status":"ok","database":"connected",...}
+```
+
+---
+
+## Comandos úteis
+
+| Comando | Descrição |
+|---------|-----------|
+| `npm run docker:up` | Sobe stack Docker (build + migrate + serviços) |
+| `npm run docker:down` | Para e remove containers da stack |
+| `npm run docker:seed` | Popula usuários de teste (Postgres em `localhost:5432`) |
+| `npm run db:postgres` | Só Postgres (dev local) |
+| `npm run db:migrate` | Migrations (dev local) |
+| `npm run db:seed` | Seed (dev local ou após Docker) |
+| `npm run dev` | Next.js em desenvolvimento |
+| `npm run dev:mock` | Dev com validação de documentos simulada |
+| `npm test` | Testes unitários |
+| `npm run build` | Build de produção |
+
+---
+
 ## Stack
 
 | Camada | Tecnologia |
@@ -13,241 +253,70 @@ Sistema de automação do licenciamento sanitário da Vigilância Sanitária de 
 | Validação Java | Spring Boot + PDFBox |
 | Infra | Docker Compose |
 
-## Pré-requisitos
-
-- Node.js 20+
-- Docker & Docker Compose
-- Java 17 (para desenvolvimento local do serviço Java)
-- Python 3.11+ (para desenvolvimento local do serviço de IA)
-
-## Setup Rápido (Docker)
-
-```bash
-# 1. Clone o repositório
-git clone https://github.com/gcastrodev/visa-londrina-mvp.git
-cd visa-londrina-mvp
-
-# 2. Configure as variáveis de ambiente
-cp .env.example .env
-# Edite o .env com seus valores
-
-# 3. Suba todos os serviços
-docker compose up -d
-
-# 4. Execute as migrations
-docker compose exec nextjs npx prisma migrate deploy
-
-# 5. (Opcional) Popule o banco com dados iniciais
-docker compose exec nextjs npm run db:seed
-```
-
-Acesse a URL exibida pelo container (geralmente http://localhost:3000).
-
-## Setup Local (Desenvolvimento)
-
-> **Importante:** o Postgres precisa estar rodando **antes** de `prisma migrate`.  
-> O erro `P1001: Can't reach database server` significa que nada está escutando em `localhost:5432`.
-
-### 1. Subir o Postgres (escolha uma opção)
-
-**Opção A — Docker (recomendado):**
-```bash
-npm run db:postgres
-# aguarde ~5s e confira:
-docker compose ps
-```
-
-**Opção B — Postgres instalado no sistema (CachyOS/Arch):**
-```bash
-sudo systemctl start postgresql
-# crie usuário e banco compatíveis com o .env (visa / visa_secret / visa_londrina)
-```
-
-### 2. App Next.js
-
-```bash
-cp .env.example .env
-npm install --legacy-peer-deps
-
-# Aplica migrations + gera client Prisma
-npm run db:migrate
-
-# Dados de teste (usuários e empresa exemplo)
-npm run db:seed
-
-npm run dev
-```
-
-Use a porta que o terminal mostrar (ex.: `http://localhost:3000` ou `3001` se a 3000 estiver ocupada).
-
-### Credenciais de desenvolvimento (seed)
-
-| Perfil | E-mail | Senha |
-|--------|--------|-------|
-| Analista | `analista@visa.londrina.pr.gov.br` | `analista123` |
-| Requerente | `farmaciavida@exemplo.com` | `requerente123` |
-| Admin | `admin@visa.londrina.pr.gov.br` | `admin123` |
-
-### Variável `NEXTAUTH_URL`
-
-Deve usar a **mesma origem** (host + porta) que você abre no navegador. Se o Next subir na porta `3001`, ajuste no `.env`:
-
-```env
-NEXTAUTH_URL=http://localhost:3001
-```
-
-O logout já evita redirect para porta errada; alinhar o `.env` ainda ajuda em callbacks do NextAuth.
-
-## Testes
-
-```bash
-# Testes unitários (regras de checklist e envio)
-npm test
-
-# Modo watch durante desenvolvimento
-npm run test:watch
-
-# Lint + build
-npm run lint
-npm run build
-```
-
-## Checklist manual do MVP
-
-1. **Login** — entrar como requerente e como analista.
-2. **Requerente** — criar processo, enviar documentos (PDF/JPEG/PNG), tentar enviar sem checklist completo (deve bloquear).
-3. **Validação IA** — com serviço em `localhost:8000`, documentos passam para `VALIDO`/`INVALIDO`; sem o serviço, ficam `PENDENTE`.
-4. **Enviar processo** — só com todos os obrigatórios em status `VALIDO`.
-5. **Analista** — ver fila, abrir processo, alterar status (iniciar análise, aprovar, reprovar, solicitar documentos).
-6. **Logout** — voltar para `/auth/login` na mesma porta do dev server.
-
 ## Estrutura do Projeto
 
 ```
 visa-londrina-mvp/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/                # API Routes (Node.js)
-│   │   │   └── processos/      # CRUD de processos e upload
-│   │   ├── auth/login/         # Página de login
-│   │   ├── requerente/         # Portal do Requerente
-│   │   └── analista/           # Dashboard do Analista
-│   ├── components/             # Componentes React reutilizáveis
-│   ├── lib/                    # Prisma client, NextAuth, utilitários
-│   └── types/                  # TypeScript types centrais
-├── prisma/
-│   └── schema.prisma           # Schema do banco de dados
+├── src/                 # Next.js (app, components, lib, types)
+├── prisma/              # schema + migrations + seed
 ├── services/
-│   ├── ia/                     # FastAPI (Python) – IA/OCR
-│   └── java/                   # Spring Boot – Validação Contrato Social
+│   ├── ia/              # FastAPI
+│   └── java/            # Spring Boot
 ├── docker-compose.yml
-├── Dockerfile
-└── .env.example
-```
-
-## Fluxo Principal
-
-```
-Requerente → Upload PDF → Node.js API → FastAPI (IA)
-                                             ↓
-                                     Spring Boot (Java)
-                                     ContratoSocialService
-                                             ↓
-                                     ResultadoValidacao JSON
-                                             ↓
-                               Dashboard Analista (Next.js)
+└── Dockerfile
 ```
 
 ## API Endpoints
 
 | Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| POST | `/api/auth/[...nextauth]` | Login/Logout |
+| GET | `/api/health` | Saúde da API e do banco |
+| POST | `/api/auth/[...nextauth]` | Login / logout |
 | GET | `/api/processos` | Lista processos (analista) |
 | POST | `/api/processos` | Cria processo (requerente) |
-| POST | `/api/processos/:id/documentos` | Upload de documento |
-| POST | `/api/processos/:id/enviar` | Envia processo (requerente) |
-| GET | `/api/processos/:id` | Detalhes do processo |
+| POST | `/api/processos/:id/documentos` | Upload |
+| POST | `/api/processos/:id/enviar` | Envia processo |
+| GET | `/api/processos/:id` | Detalhes |
 | PATCH | `/api/processos/:id/status` | Atualiza status (analista) |
-| GET | `/api/health` | Saúde da API e conexão com o banco |
 
-## Variáveis de Ambiente
+## Testes
 
-Veja `.env.example` para a lista completa.
-
-## Segurança
-
-- Autenticação JWT via NextAuth.js
-- Validação de input com Zod em todas as rotas
-- Arquivos limitados a 20MB, apenas PDF/JPEG/PNG
-- LGPD: logs de auditoria em cada ação da IA
-- `.env` nunca commitado (`.gitignore`)
+```bash
+npm test
+npm run lint
+npm run build
+```
 
 ## Solução de problemas
 
-| Sintoma | Causa provável | Ação |
-|---------|----------------|------|
-| `port 3000: bind: address already in use` no Docker | `npm run dev` ainda rodando na 3000 | Pare o dev (`Ctrl+C`) **ou** use o Docker na porta **3002** (já configurado) |
-| `P1001` no migrate | Postgres parado | `npm run db:postgres` |
-| Erro ao deslogar / redirect estranho | `NEXTAUTH_URL` com porta diferente do `npm run dev` | Ajustar `.env` ou usar a porta do terminal |
-| Aviso no `schema.prisma` (url no datasource) | Extensão Prisma 7 no editor; projeto usa Prisma 5 | Ignorar no IDE ou `npx prisma validate` |
-| Documento não valida | Serviço IA offline | Subir `services/ia` ou aceitar status `PENDENTE` em dev |
-| Botão enviar desabilitado | Checklist incompleto ou doc sem status `VALIDO` | Enviar todos os tipos obrigatórios e aguardar validação |
-| Upload fica `PENDENTE` forever | IA local não acessa o caminho do arquivo no host | `npm run dev:mock` ou subir stack Docker completa |
+| Sintoma | O que fazer |
+|---------|-------------|
+| `P1001` / can't reach database | Suba o Postgres: `npm run db:postgres` (dev) ou `npm run docker:up` (Docker) |
+| `port 3000: address already in use` no Docker | Normal se `npm run dev` está rodando — use http://localhost:**3002** (Docker) |
+| Portal Docker não abre | `docker compose ps` — `visa_nextjs` deve estar `Up`; veja `docker logs visa_nextjs` |
+| `migrate` falhou | `docker logs visa_migrate`; confira Docker ligado e porta 5432 livre |
+| Login não mantém sessão | `NEXTAUTH_URL` deve bater com a porta do navegador (3000/3001 dev, **3002** Docker) |
+| Documento fica `PENDENTE` | IA offline — use `npm run dev:mock` ou stack Docker completa |
+| Botão **Enviar** desabilitado | Falta documento obrigatório ou status não é `VALIDO` |
+| Aviso no `schema.prisma` no editor | Extensão Prisma 7 vs projeto Prisma 5 — pode ignorar; `npx prisma validate` passa |
 
-## MVP Launch
+## Variáveis de ambiente
 
-### Demo rápida (sem IA/Java)
+Lista completa em `.env.example`.
 
-Ideal para validar o fluxo requerente → analista no laptop:
+## Segurança (produção)
 
-```bash
-npm run db:postgres
-npm run db:migrate
-npm run db:seed
-npm run dev:mock
-```
-
-Com `IA_MOCK=true`, cada upload é marcado como `VALIDO` automaticamente.
-
-Confira a API: http://localhost:3000/api/health
-
-### Stack completa (Docker)
-
-```bash
-cp .env.example .env
-# Ajuste NEXTAUTH_SECRET (openssl rand -base64 32)
-
-npm run docker:up
-npm run docker:seed
-```
-
-Serviços (Docker usa a porta **3002** para não brigar com `npm run dev` na 3000):
-
-| Serviço | URL |
-|---------|-----|
-| Portal | http://localhost:3002 |
-| IA (FastAPI) | http://localhost:8000/health |
-| Java | http://localhost:8080 |
-
-Se o `.env` tiver `NEXTAUTH_URL=http://localhost:3000`, para o Docker use `http://localhost:3002` ou remova a linha (o compose já define o padrão).
-
-O serviço `migrate` aplica as migrations antes do portal subir. Uploads ficam no volume `uploads_data` (compartilhado com o serviço de IA).
-
-### Antes de produção
-
-- [ ] `NEXTAUTH_SECRET` forte e único
-- [ ] `IA_MOCK=false`
-- [ ] HTTPS e `NEXTAUTH_URL` com domínio real
-- [ ] Backup do volume Postgres
-- [ ] SMTP configurado (notificações por e-mail — futuro)
+- `NEXTAUTH_SECRET` forte e único
+- `IA_MOCK=false`
+- `NEXTAUTH_URL` com HTTPS e domínio real
+- Nunca commitar `.env`
 
 ## Milestones
 
 - [x] Sprint 0 – Setup e Schema
-- [x] Sprint 0.5 – Reorganização de pastas + scaffold Next.js
+- [x] Sprint 0.5 – Scaffold Next.js
 - [x] Sprint 1 – Auth + Login
-- [x] Sprint 2 – Portal do Requerente + Upload
-- [x] Sprint 3 – Dashboard do Analista + IA
+- [x] Sprint 2 – Portal do Requerente
+- [x] Sprint 3 – Dashboard do Analista
 - [x] Sprint 4 – Testes + README
-- [x] MVP Launch – Docker, health, IA mock para demo
+- [x] MVP Launch – Docker, health, IA mock
