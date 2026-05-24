@@ -142,7 +142,7 @@ Veja `.env.example` para a lista completa.
 
 - [x] Sprint 0 – Setup e Schema
 - [x] Sprint 0.5 – Reorganização de pastas + scaffold Next.js
-- [ ] Sprint 1 – Auth + Login
+- [x] Sprint 1 – Auth + Login
 - [ ] Sprint 2 – Portal do Requerente + Upload
 - [ ] Sprint 3 – Dashboard do Analista + IA
 - [ ] Sprint 4 – Testes + README
