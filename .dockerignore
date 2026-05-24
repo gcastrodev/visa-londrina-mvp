@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+uploads
+.git
+.env
+.env.*
+!.env.example
+coverage
+*.md
+.cursor
+terminals

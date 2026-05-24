@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:mock": "IA_MOCK=true next dev",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:seed": "docker compose exec nextjs npm run db:seed",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

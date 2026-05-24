@@ -169,6 +169,7 @@ Requerente → Upload PDF → Node.js API → FastAPI (IA)
 | POST | `/api/processos/:id/enviar` | Envia processo (requerente) |
 | GET | `/api/processos/:id` | Detalhes do processo |
 | PATCH | `/api/processos/:id/status` | Atualiza status (analista) |
+| GET | `/api/health` | Saúde da API e conexão com o banco |
 
 ## Variáveis de Ambiente
 
@@ -186,11 +187,60 @@ Veja `.env.example` para a lista completa.
 
 | Sintoma | Causa provável | Ação |
 |---------|----------------|------|
+| `port 3000: bind: address already in use` no Docker | `npm run dev` ainda rodando na 3000 | Pare o dev (`Ctrl+C`) **ou** use o Docker na porta **3002** (já configurado) |
 | `P1001` no migrate | Postgres parado | `npm run db:postgres` |
 | Erro ao deslogar / redirect estranho | `NEXTAUTH_URL` com porta diferente do `npm run dev` | Ajustar `.env` ou usar a porta do terminal |
 | Aviso no `schema.prisma` (url no datasource) | Extensão Prisma 7 no editor; projeto usa Prisma 5 | Ignorar no IDE ou `npx prisma validate` |
 | Documento não valida | Serviço IA offline | Subir `services/ia` ou aceitar status `PENDENTE` em dev |
 | Botão enviar desabilitado | Checklist incompleto ou doc sem status `VALIDO` | Enviar todos os tipos obrigatórios e aguardar validação |
+| Upload fica `PENDENTE` forever | IA local não acessa o caminho do arquivo no host | `npm run dev:mock` ou subir stack Docker completa |
+
+## MVP Launch
+
+### Demo rápida (sem IA/Java)
+
+Ideal para validar o fluxo requerente → analista no laptop:
+
+```bash
+npm run db:postgres
+npm run db:migrate
+npm run db:seed
+npm run dev:mock
+```
+
+Com `IA_MOCK=true`, cada upload é marcado como `VALIDO` automaticamente.
+
+Confira a API: http://localhost:3000/api/health
+
+### Stack completa (Docker)
+
+```bash
+cp .env.example .env
+# Ajuste NEXTAUTH_SECRET (openssl rand -base64 32)
+
+npm run docker:up
+npm run docker:seed
+```
+
+Serviços (Docker usa a porta **3002** para não brigar com `npm run dev` na 3000):
+
+| Serviço | URL |
+|---------|-----|
+| Portal | http://localhost:3002 |
+| IA (FastAPI) | http://localhost:8000/health |
+| Java | http://localhost:8080 |
+
+Se o `.env` tiver `NEXTAUTH_URL=http://localhost:3000`, para o Docker use `http://localhost:3002` ou remova a linha (o compose já define o padrão).
+
+O serviço `migrate` aplica as migrations antes do portal subir. Uploads ficam no volume `uploads_data` (compartilhado com o serviço de IA).
+
+### Antes de produção
+
+- [ ] `NEXTAUTH_SECRET` forte e único
+- [ ] `IA_MOCK=false`
+- [ ] HTTPS e `NEXTAUTH_URL` com domínio real
+- [ ] Backup do volume Postgres
+- [ ] SMTP configurado (notificações por e-mail — futuro)
 
 ## Milestones
 
@@ -200,4 +250,4 @@ Veja `.env.example` para a lista completa.
 - [x] Sprint 2 – Portal do Requerente + Upload
 - [x] Sprint 3 – Dashboard do Analista + IA
 - [x] Sprint 4 – Testes + README
-- [ ] MVP Launch
+- [x] MVP Launch – Docker, health, IA mock para demo

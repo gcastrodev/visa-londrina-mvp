@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { validarDocumentoComIA } from "@/lib/ia-validacao";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { TipoDocumento } from "@/types";
@@ -107,38 +108,7 @@ export async function POST(
     },
   });
 
-  void triggerIAValidation(documento.id, caminhoArquivo, bodyParsed.data.tipoDocumento);
+  void validarDocumentoComIA(documento.id, caminhoArquivo, bodyParsed.data.tipoDocumento);
 
   return NextResponse.json({ data: documento }, { status: 201 });
-}
-
-async function triggerIAValidation(
-  documentoId: string,
-  caminhoArquivo: string,
-  tipo: string
-) {
-  try {
-    const iaUrl = process.env.IA_SERVICE_URL ?? "http://localhost:8000";
-    const res = await fetch(`${iaUrl}/validar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caminhoArquivo, tipoDocumento: tipo }),
-    });
-
-    if (!res.ok) throw new Error(`IA retornou ${res.status}`);
-
-    const resultadoIA = await res.json();
-    const statusDocumento = resultadoIA.valido ? "VALIDO" : "INVALIDO";
-
-    await prisma.documento.update({
-      where: { id: documentoId },
-      data: { status: statusDocumento, resultadoIA },
-    });
-  } catch (err) {
-    console.error("[IA Validation] Erro:", err);
-    await prisma.documento.update({
-      where: { id: documentoId },
-      data: { status: "PENDENTE" },
-    });
-  }
 }
