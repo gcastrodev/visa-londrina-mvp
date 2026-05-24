@@ -1,7 +1,3 @@
-// src/lib/auth.ts
-// Configuração do NextAuth.js com JWT e provider de credenciais
-// Suporta dois roles: REQUERENTE e ANALISTA
-
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
@@ -56,7 +52,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role: string }).role;
+        token.role = user.role;
       }
       return token;
     },
@@ -70,8 +66,11 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-// Extende o tipo do Session do NextAuth
 declare module "next-auth" {
+  interface User {
+    role: string;
+  }
+
   interface Session {
     user: {
       id: string;
@@ -79,5 +78,12 @@ declare module "next-auth" {
       name: string;
       role: string;
     };
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    role?: string;
   }
 }

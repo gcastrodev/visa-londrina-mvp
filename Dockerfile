@@ -10,7 +10,11 @@ RUN npm ci
 # Build
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY package*.json ./
+COPY prisma ./prisma
+COPY src ./src
+COPY public ./public
+COPY next.config.js tsconfig.json tailwind.config.ts postcss.config.js next-env.d.ts ./
 RUN npx prisma generate
 RUN npm run build
 

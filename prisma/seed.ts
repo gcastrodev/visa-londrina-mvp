@@ -1,6 +1,3 @@
-// prisma/seed.ts
-// Popula o banco com usuários iniciais para desenvolvimento
-
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 
@@ -9,7 +6,6 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Iniciando seed...");
 
-  // Analista VISA
   const analista = await prisma.user.upsert({
     where: { email: "analista@visa.londrina.pr.gov.br" },
     update: {},
@@ -22,7 +18,6 @@ async function main() {
   });
   console.log("✅ Analista criado:", analista.email);
 
-  // Requerente (Farmácia)
   const requerente = await prisma.user.upsert({
     where: { email: "farmaciavida@exemplo.com" },
     update: {},
@@ -44,7 +39,6 @@ async function main() {
   });
   console.log("✅ Requerente criado:", requerente.email);
 
-  // Admin
   const admin = await prisma.user.upsert({
     where: { email: "admin@visa.londrina.pr.gov.br" },
     update: {},
@@ -58,10 +52,6 @@ async function main() {
   console.log("✅ Admin criado:", admin.email);
 
   console.log("\n🎉 Seed concluído!");
-  console.log("\nCredenciais de acesso:");
-  console.log("  Analista: analista@visa.londrina.pr.gov.br / analista123");
-  console.log("  Requerente: farmaciavida@exemplo.com / requerente123");
-  console.log("  Admin: admin@visa.londrina.pr.gov.br / admin123");
 }
 
 main()

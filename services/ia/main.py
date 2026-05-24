@@ -1,8 +1,3 @@
-# services/ia/main.py
-# FastAPI – Serviço de IA/OCR do VISA Londrina
-# Recebe arquivo do Node.js, usa Tesseract (se necessário) e repassa ao Java
-# para validação do Contrato Social via ContratoSocialService
-
 import os
 import httpx
 import logging
@@ -47,12 +42,6 @@ async def health():
 
 @app.post("/validar", response_model=ResultadoValidacao)
 async def validar_documento(req: ValidacaoRequest):
-    """
-    Pipeline:
-    1. Verifica se o arquivo existe
-    2. Se for CONTRATO_SOCIAL → chama o serviço Java (Spring Boot)
-    3. Demais tipos → validação básica (pode evoluir com HuggingFace/BERT)
-    """
     caminho = Path(req.caminhoArquivo)
 
     if not caminho.exists():
@@ -62,19 +51,14 @@ async def validar_documento(req: ValidacaoRequest):
 
     if req.tipoDocumento == "CONTRATO_SOCIAL":
         return await _validar_contrato_social_via_java(caminho)
-    else:
-        # Validação básica para outros documentos (expansível)
-        return ResultadoValidacao(
-            valido=True,
-            alertas=[f"Documento {req.tipoDocumento} recebido. Validação manual necessária."],
-        )
+
+    return ResultadoValidacao(
+        valido=True,
+        alertas=[f"Documento {req.tipoDocumento} recebido. Validação manual necessária."],
+    )
 
 
 async def _validar_contrato_social_via_java(caminho: Path) -> ResultadoValidacao:
-    """
-    Envia o PDF para o endpoint Java /api/contrato-social/validar
-    e retorna o ResultadoValidacao deserializado.
-    """
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             with open(caminho, "rb") as f:
@@ -109,4 +93,5 @@ async def _validar_contrato_social_via_java(caminho: Path) -> ResultadoValidacao
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

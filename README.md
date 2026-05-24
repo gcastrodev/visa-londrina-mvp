@@ -44,15 +44,37 @@ Acesse: http://localhost:3000
 
 ## Setup Local (Desenvolvimento)
 
+> **Importante:** o Postgres precisa estar rodando **antes** de `prisma migrate`.  
+> O erro `P1001: Can't reach database server` significa que nada está escutando em `localhost:5432`.
+
+### 1. Subir o Postgres (escolha uma opção)
+
+**Opção A — Docker (recomendado):**
 ```bash
-# Install
-npm install
+docker compose up -d postgres
+# aguarde ~5s e confira:
+docker compose ps
+```
 
-# Banco de dados (precisa do Postgres rodando)
-npx prisma migrate dev
-npx prisma generate
+**Opção B — Postgres instalado no sistema (CachyOS/Arch):**
+```bash
+sudo systemctl start postgresql
+# crie usuário e banco compatíveis com o .env (visa / visa_secret / visa_londrina)
+```
 
-# Dev server
+### 2. App Next.js
+
+```bash
+cp .env.example .env
+npm install --legacy-peer-deps
+
+# Aplica migrations + gera client Prisma
+npm run db:migrate
+# ou, se preferir sem histórico de migration: npm run db:push
+
+# (Opcional) dados de teste
+npm run db:seed
+
 npm run dev
 ```
 
@@ -119,6 +141,7 @@ Veja `.env.example` para a lista completa.
 ## Milestones
 
 - [x] Sprint 0 – Setup e Schema
+- [x] Sprint 0.5 – Reorganização de pastas + scaffold Next.js
 - [ ] Sprint 1 – Auth + Login
 - [ ] Sprint 2 – Portal do Requerente + Upload
 - [ ] Sprint 3 – Dashboard do Analista + IA

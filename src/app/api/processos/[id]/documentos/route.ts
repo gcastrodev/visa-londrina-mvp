@@ -1,7 +1,3 @@
-// src/app/api/processos/[id]/documentos/route.ts
-// POST /api/processos/:id/documentos  – Upload de documento
-// Valida o arquivo, salva localmente e dispara validação assíncrona da IA
-
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
@@ -11,7 +7,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { TipoDocumento } from "@/types";
 
-const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_SIZE_BYTES = 20 * 1024 * 1024;
 const MIME_ACEITOS = ["application/pdf", "image/jpeg", "image/png"];
 
 const paramsSchema = z.object({
@@ -34,19 +30,16 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
   }
 
-  // ── Valida params ─────────────────────────────────────────────────────────
   const parsedParams = paramsSchema.safeParse(params);
   if (!parsedParams.success) {
     return NextResponse.json({ erro: "ID de processo inválido" }, { status: 400 });
   }
 
-  // ── Verifica se processo existe e pertence ao requerente ──────────────────
   const processo = await prisma.processo.findFirst({
     where: {
       id: params.id,
@@ -65,7 +58,6 @@ export async function POST(
     );
   }
 
-  // ── Parse do form data ────────────────────────────────────────────────────
   const formData = await request.formData();
   const arquivo = formData.get("arquivo") as File | null;
   const tipoRaw = formData.get("tipoDocumento") as string | null;
@@ -82,7 +74,6 @@ export async function POST(
     );
   }
 
-  // ── Validações do arquivo ─────────────────────────────────────────────────
   if (arquivo.size > MAX_SIZE_BYTES) {
     return NextResponse.json({ erro: "Arquivo maior que 20MB não é permitido" }, { status: 400 });
   }
@@ -94,7 +85,6 @@ export async function POST(
     );
   }
 
-  // ── Salva o arquivo ───────────────────────────────────────────────────────
   const uploadDir = path.join(process.cwd(), "uploads", params.id);
   await mkdir(uploadDir, { recursive: true });
 
@@ -105,7 +95,6 @@ export async function POST(
   const bytes = await arquivo.arrayBuffer();
   await writeFile(caminhoArquivo, Buffer.from(bytes));
 
-  // ── Cria registro no banco ────────────────────────────────────────────────
   const documento = await prisma.documento.create({
     data: {
       tipo: bodyParsed.data.tipoDocumento as TipoDocumento,
@@ -118,16 +107,11 @@ export async function POST(
     },
   });
 
-  // ── Dispara validação assíncrona da IA (fire and forget) ──────────────────
   void triggerIAValidation(documento.id, caminhoArquivo, bodyParsed.data.tipoDocumento);
 
   return NextResponse.json({ data: documento }, { status: 201 });
 }
 
-/**
- * Chama o serviço de IA (FastAPI → Java) para validar o documento.
- * Atualiza o status no banco após a resposta.
- */
 async function triggerIAValidation(
   documentoId: string,
   caminhoArquivo: string,

@@ -1,9 +1,3 @@
-// src/types/index.ts
-// Tipos centrais do VISA Londrina MVP
-// Alinhados com o schema Prisma e o ResultadoValidacao do Java
-
-// ─── Enums (espelham o Prisma) ───────────────────────────────────────────────
-
 export type Role = "REQUERENTE" | "ANALISTA" | "ADMIN";
 
 export type StatusProcesso =
@@ -36,8 +30,6 @@ export type TipoDocumento =
   | "RG_CPF_RESPONSAVEL"
   | "OUTROS";
 
-// ─── Resultado da IA (Java ContratoSocialService) ────────────────────────────
-
 export interface ResultadoValidacaoIA {
   valido: boolean;
   isUltimaVersao: boolean;
@@ -49,8 +41,6 @@ export interface ResultadoValidacaoIA {
   alertas: string[];
   erros: string[];
 }
-
-// ─── Entidades ───────────────────────────────────────────────────────────────
 
 export interface User {
   id: string;
@@ -111,8 +101,6 @@ export interface Notificacao {
   processoId: string;
 }
 
-// ─── API response shapes ─────────────────────────────────────────────────────
-
 export interface ApiResponse<T> {
   data: T;
   message?: string;
@@ -130,8 +118,6 @@ export interface PaginatedResponse<T> {
   perPage: number;
 }
 
-// ─── Checklist de documentos por tipo de processo ────────────────────────────
-
 export const CHECKLIST_DOCUMENTOS: Record<TipoProcesso, TipoDocumento[]> = {
   LICENCA_INICIAL: [
     "CONTRATO_SOCIAL",
@@ -145,10 +131,7 @@ export const CHECKLIST_DOCUMENTOS: Record<TipoProcesso, TipoDocumento[]> = {
     "HABILITACAO_TECNICA",
     "ALVARA_FUNCIONAMENTO",
   ],
-  ALTERACAO_ATIVIDADE: [
-    "CONTRATO_SOCIAL",
-    "CNPJ",
-  ],
+  ALTERACAO_ATIVIDADE: ["CONTRATO_SOCIAL", "CNPJ"],
   ALTERACAO_RESPONSAVEL: [
     "CONTRATO_SOCIAL",
     "RG_CPF_RESPONSAVEL",

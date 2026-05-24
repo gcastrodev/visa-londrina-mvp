@@ -1,14 +1,8 @@
-// src/app/api/processos/route.ts
-// GET /api/processos – Lista processos com filtros (para o Dashboard do Analista)
-// POST /api/processos – Cria novo processo (para o Requerente)
-
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-
-// ── GET (Analista: fila de processos) ─────────────────────────────────────────
 
 const querySchema = z.object({
   status: z.string().optional(),
@@ -73,8 +67,6 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// ── POST (Requerente: cria processo) ──────────────────────────────────────────
-
 const createSchema = z.object({
   tipo: z.enum([
     "LICENCA_INICIAL",
@@ -109,7 +101,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Prazo padrão: 10 dias úteis ≈ 14 dias corridos
   const prazoAnalise = new Date();
   prazoAnalise.setDate(prazoAnalise.getDate() + 14);
 

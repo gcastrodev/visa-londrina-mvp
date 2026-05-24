@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  REQUERENTE
+  ANALISTA
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  senha     String
+  nome      String
+  role      Role     @default(REQUERENTE)
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+  empresa   Empresa?
+  processos Processo[] @relation("AnalistaProcessos")
+}
+
+model Empresa {
+  id          String     @id @default(cuid())
+  razaoSocial String
+  cnpj        String     @unique
+  cnae        String
+  email       String
+  telefone    String?
+  criadoEm    DateTime   @default(now())
+  userId      String     @unique
+  user        User       @relation(fields: [userId], references: [id])
+  processos   Processo[]
+}
+
+enum StatusProcesso {
+  RASCUNHO
+  ENVIADO
+  EM_ANALISE
+  PENDENTE_DOCUMENTOS
+  APROVADO
+  REPROVADO
+}
+
+enum TipoProcesso {
+  LICENCA_INICIAL
+  RENOVACAO
+  ALTERACAO_ATIVIDADE
+  ALTERACAO_RESPONSAVEL
+}
+
+model Processo {
+  id           String         @id @default(cuid())
+  protocolo    String         @unique @default(cuid())
+  tipo         TipoProcesso
+  status       StatusProcesso @default(RASCUNHO)
+  riscoIA      Float?
+  preRelatorio Json?
+  observacoes  String?
+  criadoEm     DateTime       @default(now())
+  atualizadoEm DateTime       @updatedAt
+  prazoAnalise DateTime?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  analistaId String?
+  analista   User?  @relation("AnalistaProcessos", fields: [analistaId], references: [id])
+
+  documentos   Documento[]
+  notificacoes Notificacao[]
+}
+
+enum StatusDocumento {
+  PENDENTE
+  AGUARDANDO_VALIDACAO
+  VALIDO
+  INVALIDO
+  EXPIRADO
+}
+
+enum TipoDocumento {
+  CONTRATO_SOCIAL
+  ALVARA_FUNCIONAMENTO
+  HABILITACAO_TECNICA
+  COMPROVANTE_ENDERECO
+  CNPJ
+  RG_CPF_RESPONSAVEL
+  OUTROS
+}
+
+model Documento {
+  id             String          @id @default(cuid())
+  tipo           TipoDocumento
+  status         StatusDocumento @default(PENDENTE)
+  nomeArquivo    String
+  caminhoArquivo String
+  tamanhoBytes   Int
+  mimeType       String
+  resultadoIA    Json?
+  criadoEm       DateTime        @default(now())
+  processoId     String
+  processo       Processo        @relation(fields: [processoId], references: [id])
+}
+
+enum TipoNotificacao {
+  EMAIL
+  SISTEMA
+}
+
+model Notificacao {
+  id         String          @id @default(cuid())
+  tipo       TipoNotificacao
+  assunto    String
+  mensagem   String
+  lida       Boolean         @default(false)
+  enviadaEm  DateTime        @default(now())
+  processoId String
+  processo   Processo        @relation(fields: [processoId], references: [id])
+}
