@@ -123,6 +123,7 @@ Requerente → Upload PDF → Node.js API → FastAPI (IA)
 | GET | `/api/processos` | Lista processos (analista) |
 | POST | `/api/processos` | Cria processo (requerente) |
 | POST | `/api/processos/:id/documentos` | Upload de documento |
+| POST | `/api/processos/:id/enviar` | Envia processo (requerente) |
 | GET | `/api/processos/:id` | Detalhes do processo |
 | PATCH | `/api/processos/:id/status` | Atualiza status (analista) |
 
@@ -143,7 +144,7 @@ Veja `.env.example` para a lista completa.
 - [x] Sprint 0 – Setup e Schema
 - [x] Sprint 0.5 – Reorganização de pastas + scaffold Next.js
 - [x] Sprint 1 – Auth + Login
-- [ ] Sprint 2 – Portal do Requerente + Upload
+- [x] Sprint 2 – Portal do Requerente + Upload
 - [ ] Sprint 3 – Dashboard do Analista + IA
 - [ ] Sprint 4 – Testes + README
 - [ ] MVP Launch

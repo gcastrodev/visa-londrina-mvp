@@ -157,3 +157,18 @@ export const LABEL_TIPO_DOCUMENTO: Record<TipoDocumento, string> = {
   RG_CPF_RESPONSAVEL: "RG/CPF do Responsável Técnico",
   OUTROS: "Outros",
 };
+
+export const LABEL_TIPO_PROCESSO: Record<TipoProcesso, string> = {
+  LICENCA_INICIAL: "Licença inicial",
+  RENOVACAO: "Renovação",
+  ALTERACAO_ATIVIDADE: "Alteração de atividade",
+  ALTERACAO_RESPONSAVEL: "Alteração de responsável",
+};
+
+export const LABEL_STATUS_DOCUMENTO: Record<StatusDocumento, string> = {
+  PENDENTE: "Pendente",
+  AGUARDANDO_VALIDACAO: "Validando",
+  VALIDO: "Válido",
+  INVALIDO: "Inválido",
+  EXPIRADO: "Expirado",
+};

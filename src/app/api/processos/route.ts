@@ -19,12 +19,50 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const query = querySchema.parse(Object.fromEntries(searchParams));
+
+  if (session.user.role === "REQUERENTE") {
+    const empresa = await prisma.empresa.findFirst({
+      where: { user: { email: session.user.email } },
+    });
+
+    if (!empresa) {
+      return NextResponse.json(
+        { erro: "Empresa não cadastrada. Complete seu perfil primeiro." },
+        { status: 422 }
+      );
+    }
+
+    const where: Record<string, unknown> = { empresaId: empresa.id };
+    if (query.status) where.status = query.status;
+    if (query.tipo) where.tipo = query.tipo;
+
+    const [processos, total] = await Promise.all([
+      prisma.processo.findMany({
+        where,
+        orderBy: { criadoEm: "desc" },
+        skip: (query.page - 1) * query.perPage,
+        take: query.perPage,
+        include: {
+          empresa: true,
+          documentos: { select: { id: true, tipo: true, status: true } },
+        },
+      }),
+      prisma.processo.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      data: processos,
+      total,
+      page: query.page,
+      perPage: query.perPage,
+    });
+  }
+
   if (session.user.role !== "ANALISTA" && session.user.role !== "ADMIN") {
     return NextResponse.json({ erro: "Permissão negada" }, { status: 403 });
   }
-
-  const { searchParams } = new URL(request.url);
-  const query = querySchema.parse(Object.fromEntries(searchParams));
 
   const where: Record<string, unknown> = {};
 
