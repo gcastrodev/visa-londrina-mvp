@@ -1,0 +1,160 @@
+// src/app/api/processos/[id]/documentos/route.ts
+// POST /api/processos/:id/documentos  – Upload de documento
+// Valida o arquivo, salva localmente e dispara validação assíncrona da IA
+
+import { NextRequest, NextResponse } from "next/server";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import type { TipoDocumento } from "@/types";
+
+const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MIME_ACEITOS = ["application/pdf", "image/jpeg", "image/png"];
+
+const paramsSchema = z.object({
+  id: z.string().cuid(),
+});
+
+const bodySchema = z.object({
+  tipoDocumento: z.enum([
+    "CONTRATO_SOCIAL",
+    "ALVARA_FUNCIONAMENTO",
+    "HABILITACAO_TECNICA",
+    "COMPROVANTE_ENDERECO",
+    "CNPJ",
+    "RG_CPF_RESPONSAVEL",
+    "OUTROS",
+  ]),
+});
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
+  }
+
+  // ── Valida params ─────────────────────────────────────────────────────────
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return NextResponse.json({ erro: "ID de processo inválido" }, { status: 400 });
+  }
+
+  // ── Verifica se processo existe e pertence ao requerente ──────────────────
+  const processo = await prisma.processo.findFirst({
+    where: {
+      id: params.id,
+      empresa: { user: { email: session.user.email! } },
+    },
+  });
+
+  if (!processo) {
+    return NextResponse.json({ erro: "Processo não encontrado" }, { status: 404 });
+  }
+
+  if (!["RASCUNHO", "PENDENTE_DOCUMENTOS"].includes(processo.status)) {
+    return NextResponse.json(
+      { erro: "Não é possível adicionar documentos a este processo no status atual" },
+      { status: 422 }
+    );
+  }
+
+  // ── Parse do form data ────────────────────────────────────────────────────
+  const formData = await request.formData();
+  const arquivo = formData.get("arquivo") as File | null;
+  const tipoRaw = formData.get("tipoDocumento") as string | null;
+
+  if (!arquivo) {
+    return NextResponse.json({ erro: "Arquivo não enviado" }, { status: 400 });
+  }
+
+  const bodyParsed = bodySchema.safeParse({ tipoDocumento: tipoRaw });
+  if (!bodyParsed.success) {
+    return NextResponse.json(
+      { erro: "Tipo de documento inválido", detalhes: bodyParsed.error.issues.map((i) => i.message) },
+      { status: 400 }
+    );
+  }
+
+  // ── Validações do arquivo ─────────────────────────────────────────────────
+  if (arquivo.size > MAX_SIZE_BYTES) {
+    return NextResponse.json({ erro: "Arquivo maior que 20MB não é permitido" }, { status: 400 });
+  }
+
+  if (!MIME_ACEITOS.includes(arquivo.type)) {
+    return NextResponse.json(
+      { erro: "Tipo de arquivo não aceito. Use PDF, JPEG ou PNG" },
+      { status: 400 }
+    );
+  }
+
+  // ── Salva o arquivo ───────────────────────────────────────────────────────
+  const uploadDir = path.join(process.cwd(), "uploads", params.id);
+  await mkdir(uploadDir, { recursive: true });
+
+  const ext = arquivo.name.split(".").pop();
+  const nomeUnico = `${bodyParsed.data.tipoDocumento}_${Date.now()}.${ext}`;
+  const caminhoArquivo = path.join(uploadDir, nomeUnico);
+
+  const bytes = await arquivo.arrayBuffer();
+  await writeFile(caminhoArquivo, Buffer.from(bytes));
+
+  // ── Cria registro no banco ────────────────────────────────────────────────
+  const documento = await prisma.documento.create({
+    data: {
+      tipo: bodyParsed.data.tipoDocumento as TipoDocumento,
+      status: "AGUARDANDO_VALIDACAO",
+      nomeArquivo: arquivo.name,
+      caminhoArquivo,
+      tamanhoBytes: arquivo.size,
+      mimeType: arquivo.type,
+      processoId: params.id,
+    },
+  });
+
+  // ── Dispara validação assíncrona da IA (fire and forget) ──────────────────
+  void triggerIAValidation(documento.id, caminhoArquivo, bodyParsed.data.tipoDocumento);
+
+  return NextResponse.json({ data: documento }, { status: 201 });
+}
+
+/**
+ * Chama o serviço de IA (FastAPI → Java) para validar o documento.
+ * Atualiza o status no banco após a resposta.
+ */
+async function triggerIAValidation(
+  documentoId: string,
+  caminhoArquivo: string,
+  tipo: string
+) {
+  try {
+    const iaUrl = process.env.IA_SERVICE_URL ?? "http://localhost:8000";
+    const res = await fetch(`${iaUrl}/validar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caminhoArquivo, tipoDocumento: tipo }),
+    });
+
+    if (!res.ok) throw new Error(`IA retornou ${res.status}`);
+
+    const resultadoIA = await res.json();
+    const statusDocumento = resultadoIA.valido ? "VALIDO" : "INVALIDO";
+
+    await prisma.documento.update({
+      where: { id: documentoId },
+      data: { status: statusDocumento, resultadoIA },
+    });
+  } catch (err) {
+    console.error("[IA Validation] Erro:", err);
+    await prisma.documento.update({
+      where: { id: documentoId },
+      data: { status: "PENDENTE" },
+    });
+  }
+}

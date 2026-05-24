@@ -1,0 +1,79 @@
+version: "3.9"
+
+# VISA Londrina MVP – Docker Compose
+# Sobe: PostgreSQL, Next.js (frontend + API Node), FastAPI (IA/OCR), Spring Boot (validação Java)
+
+services:
+
+  # ── Banco de Dados ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: visa_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: visa_londrina
+      POSTGRES_USER: ${POSTGRES_USER:-visa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-visa_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-visa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Next.js (Frontend + API Node/Prisma) ────────────────────────────────────
+  nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: visa_nextjs
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-visa}:${POSTGRES_PASSWORD:-visa_secret}@postgres:5432/visa_londrina
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change_me_in_production}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      IA_SERVICE_URL: http://ia_service:8000
+      JAVA_SERVICE_URL: http://java_service:8080
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@visa.londrina.pr.gov.br}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
+
+  # ── FastAPI – Serviço de IA/OCR (Python) ────────────────────────────────────
+  ia_service:
+    build:
+      context: ./services/ia
+      dockerfile: Dockerfile
+    container_name: visa_ia
+    restart: unless-stopped
+    environment:
+      JAVA_SERVICE_URL: http://java_service:8080
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+
+  # ── Spring Boot – Validação de Contrato Social (Java) ───────────────────────
+  java_service:
+    build:
+      context: ./services/java
+      dockerfile: Dockerfile
+    container_name: visa_java
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
+  uploads_data:
