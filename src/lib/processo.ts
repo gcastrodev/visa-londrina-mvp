@@ -24,16 +24,19 @@ export function podeEnviarProcesso(
 
   for (const tipoDoc of obrigatorios) {
     const docsDoTipo = documentos.filter((d) => d.tipo === tipoDoc);
+    const label = LABEL_TIPO_DOCUMENTO[tipoDoc];
 
     if (docsDoTipo.length === 0) {
-      erros.push(`Falta enviar: ${LABEL_TIPO_DOCUMENTO[tipoDoc]}`);
+      erros.push(`Falta enviar: ${label}`);
       continue;
     }
 
-    const temInvalido = docsDoTipo.some((d) => d.status === "INVALIDO");
+    if (docsDoTipo.some((d) => d.status === "VALIDO")) continue;
 
-    if (temInvalido) {
-      erros.push(`Documento inválido: ${LABEL_TIPO_DOCUMENTO[tipoDoc]}`);
+    if (docsDoTipo.some((d) => d.status === "INVALIDO")) {
+      erros.push(`Documento inválido: ${label}`);
+    } else {
+      erros.push(`Documento pendente de validação: ${label}`);
     }
   }
 

@@ -6,8 +6,9 @@ Sistema de automação do licenciamento sanitário da Vigilância Sanitária de 
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Frontend + API | Next.js 15 (App Router) + TypeScript |
-| ORM / DB | Prisma + PostgreSQL |
+| Frontend + API | Next.js 14 (App Router) + TypeScript |
+| ORM / DB | Prisma 5 + PostgreSQL |
+| Auth | NextAuth.js (JWT) |
 | IA / OCR | Python FastAPI + Tesseract |
 | Validação Java | Spring Boot + PDFBox |
 | Infra | Docker Compose |
@@ -31,16 +32,16 @@ cp .env.example .env
 # Edite o .env com seus valores
 
 # 3. Suba todos os serviços
-docker-compose up -d
+docker compose up -d
 
 # 4. Execute as migrations
-docker-compose exec nextjs npx prisma migrate deploy
+docker compose exec nextjs npx prisma migrate deploy
 
 # 5. (Opcional) Popule o banco com dados iniciais
-docker-compose exec nextjs npm run db:seed
+docker compose exec nextjs npm run db:seed
 ```
 
-Acesse: http://localhost:3000
+Acesse a URL exibida pelo container (geralmente http://localhost:3000).
 
 ## Setup Local (Desenvolvimento)
 
@@ -51,7 +52,7 @@ Acesse: http://localhost:3000
 
 **Opção A — Docker (recomendado):**
 ```bash
-docker compose up -d postgres
+npm run db:postgres
 # aguarde ~5s e confira:
 docker compose ps
 ```
@@ -70,13 +71,55 @@ npm install --legacy-peer-deps
 
 # Aplica migrations + gera client Prisma
 npm run db:migrate
-# ou, se preferir sem histórico de migration: npm run db:push
 
-# (Opcional) dados de teste
+# Dados de teste (usuários e empresa exemplo)
 npm run db:seed
 
 npm run dev
 ```
+
+Use a porta que o terminal mostrar (ex.: `http://localhost:3000` ou `3001` se a 3000 estiver ocupada).
+
+### Credenciais de desenvolvimento (seed)
+
+| Perfil | E-mail | Senha |
+|--------|--------|-------|
+| Analista | `analista@visa.londrina.pr.gov.br` | `analista123` |
+| Requerente | `farmaciavida@exemplo.com` | `requerente123` |
+| Admin | `admin@visa.londrina.pr.gov.br` | `admin123` |
+
+### Variável `NEXTAUTH_URL`
+
+Deve usar a **mesma origem** (host + porta) que você abre no navegador. Se o Next subir na porta `3001`, ajuste no `.env`:
+
+```env
+NEXTAUTH_URL=http://localhost:3001
+```
+
+O logout já evita redirect para porta errada; alinhar o `.env` ainda ajuda em callbacks do NextAuth.
+
+## Testes
+
+```bash
+# Testes unitários (regras de checklist e envio)
+npm test
+
+# Modo watch durante desenvolvimento
+npm run test:watch
+
+# Lint + build
+npm run lint
+npm run build
+```
+
+## Checklist manual do MVP
+
+1. **Login** — entrar como requerente e como analista.
+2. **Requerente** — criar processo, enviar documentos (PDF/JPEG/PNG), tentar enviar sem checklist completo (deve bloquear).
+3. **Validação IA** — com serviço em `localhost:8000`, documentos passam para `VALIDO`/`INVALIDO`; sem o serviço, ficam `PENDENTE`.
+4. **Enviar processo** — só com todos os obrigatórios em status `VALIDO`.
+5. **Analista** — ver fila, abrir processo, alterar status (iniciar análise, aprovar, reprovar, solicitar documentos).
+6. **Logout** — voltar para `/auth/login` na mesma porta do dev server.
 
 ## Estrutura do Projeto
 
@@ -139,6 +182,16 @@ Veja `.env.example` para a lista completa.
 - LGPD: logs de auditoria em cada ação da IA
 - `.env` nunca commitado (`.gitignore`)
 
+## Solução de problemas
+
+| Sintoma | Causa provável | Ação |
+|---------|----------------|------|
+| `P1001` no migrate | Postgres parado | `npm run db:postgres` |
+| Erro ao deslogar / redirect estranho | `NEXTAUTH_URL` com porta diferente do `npm run dev` | Ajustar `.env` ou usar a porta do terminal |
+| Aviso no `schema.prisma` (url no datasource) | Extensão Prisma 7 no editor; projeto usa Prisma 5 | Ignorar no IDE ou `npx prisma validate` |
+| Documento não valida | Serviço IA offline | Subir `services/ia` ou aceitar status `PENDENTE` em dev |
+| Botão enviar desabilitado | Checklist incompleto ou doc sem status `VALIDO` | Enviar todos os tipos obrigatórios e aguardar validação |
+
 ## Milestones
 
 - [x] Sprint 0 – Setup e Schema
@@ -146,5 +199,5 @@ Veja `.env.example` para a lista completa.
 - [x] Sprint 1 – Auth + Login
 - [x] Sprint 2 – Portal do Requerente + Upload
 - [x] Sprint 3 – Dashboard do Analista + IA
-- [ ] Sprint 4 – Testes + README
+- [x] Sprint 4 – Testes + README
 - [ ] MVP Launch
