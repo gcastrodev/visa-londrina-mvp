@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
 interface AppHeaderProps {
@@ -7,7 +8,15 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ titulo }: AppHeaderProps) {
+  const router = useRouter();
   const { data: session } = useSession();
+
+  async function handleSignOut() {
+    // Evita redirect do NextAuth para NEXTAUTH_URL (ex.: :3000) quando o dev roda em outra porta (:3001).
+    await signOut({ redirect: false });
+    router.push("/auth/login");
+    router.refresh();
+  }
 
   return (
     <header className="border-b border-gray-200 bg-white">
@@ -27,7 +36,7 @@ export function AppHeader({ titulo }: AppHeaderProps) {
           )}
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/auth/login" })}
+            onClick={handleSignOut}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
           >
             Sair
